@@ -1,0 +1,125 @@
+# Cloud Build configuration for Weather Server CI/CD
+
+steps:
+  # Build Docker images
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-server'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.server'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-server:$SHORT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-server:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-aggregator'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.aggregator'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-aggregator:$SHORT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-aggregator:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-alarming'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.alarming'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-alarming:$SHORT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-alarming:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-notification'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.notification'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-notification:$SHORT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-notification:latest'
+      - '.'
+
+  # Push images
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-images'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-server'
+    waitFor: ['build-server']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-aggregator'
+    waitFor: ['build-aggregator']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-alarming'
+    waitFor: ['build-alarming']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/weather-server/weather-notification'
+    waitFor: ['build-notification']
+
+  # Deploy to GKE
+  - name: 'gcr.io/cloud-builders/gke-deploy'
+    id: 'deploy-to-gke'
+    args:
+      - 'run'
+      - '--filename=k8s/'
+      - '--location=${_REGION}'
+      - '--cluster=${_CLUSTER_NAME}'
+      - '--namespace=weather-system'
+    waitFor: ['push-images']
+
+  # Run database migrations
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'run-migrations'
+    args:
+      - 'create'
+      - 'job'
+      - 'db-migration-$SHORT_SHA'
+      - '--from=deployment/weather-server'
+      - '--namespace=weather-system'
+      - '--'
+      - '/bin/sh'
+      - '-c'
+      - 'echo "Migrations would run here"'
+    env:
+      - 'CLOUDSDK_COMPUTE_REGION=${_REGION}'
+      - 'CLOUDSDK_CONTAINER_CLUSTER=${_CLUSTER_NAME}'
+    waitFor: ['deploy-to-gke']
+
+substitutions:
+  _REGION: us-central1
+  _CLUSTER_NAME: weather-cluster
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: '1800s'
+
+tags:
+  - 'weather-server'
+  - 'gke-deployment'
+

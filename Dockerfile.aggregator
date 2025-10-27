@@ -1,0 +1,25 @@
+# Multi-stage build for Aggregation Service
+FROM golang:1.21-alpine AS builder
+
+RUN apk add --no-cache git make
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /bin/weather-aggregator ./cmd/aggregator
+
+# Final stage
+FROM alpine:3.18
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /bin/weather-aggregator /app/weather-aggregator
+
+CMD ["/app/weather-aggregator"]
+

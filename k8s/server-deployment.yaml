@@ -1,0 +1,202 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-server
+  namespace: weather-system
+  labels:
+    app: weather-server
+    component: tcp-server
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: weather-server
+  template:
+    metadata:
+      labels:
+        app: weather-server
+        component: tcp-server
+    spec:
+      containers:
+      - name: server
+        image: gcr.io/YOUR_PROJECT_ID/weather-server:latest
+        imagePullPolicy: Always
+        ports:
+        - name: tcp
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: weather-secrets
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: weather-secrets
+              key: DB_PASSWORD
+        - name: DB_SSLMODE
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: DB_SSLMODE
+        - name: REDIS_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: REDIS_ADDR
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: weather-secrets
+              key: REDIS_PASSWORD
+        - name: REDIS_DB
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: REDIS_DB
+        - name: KAFKA_BROKERS
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: KAFKA_BROKERS
+        - name: KAFKA_TOPIC_METRICS
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: KAFKA_TOPIC_METRICS
+        - name: KAFKA_TOPIC_ALARMS
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: KAFKA_TOPIC_ALARMS
+        - name: KAFKA_NUM_PARTITIONS
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: KAFKA_NUM_PARTITIONS
+        - name: TCP_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: TCP_PORT
+        - name: TCP_MAX_CONNECTIONS
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: TCP_MAX_CONNECTIONS
+        - name: TCP_IDENTIFY_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: TCP_IDENTIFY_TIMEOUT
+        - name: TCP_INACTIVITY_TIMEOUT
+          valueFrom:
+            configMapKeyRef:
+              name: weather-config
+              key: TCP_INACTIVITY_TIMEOUT
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - weather-server
+              topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-server-service
+  namespace: weather-system
+  labels:
+    app: weather-server
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: tcp
+  selector:
+    app: weather-server
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 300
+
+---
+# HorizontalPodAutoscaler for TCP Server
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: weather-server-hpa
+  namespace: weather-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-server
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: weather-system
+  labels:
+    name: weather-system
+    environment: production
+

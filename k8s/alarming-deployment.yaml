@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-alarming
+  namespace: weather-system
+  labels:
+    app: weather-alarming
+    component: alarming
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: weather-alarming
+  template:
+    metadata:
+      labels:
+        app: weather-alarming
+        component: alarming
+    spec:
+      containers:
+      - name: alarming
+        image: gcr.io/YOUR_PROJECT_ID/weather-alarming:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: weather-config
+        - secretRef:
+            name: weather-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "400m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "pgrep -f weather-alarming"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - weather-alarming
+              topologyKey: kubernetes.io/hostname
+
+---
+# HorizontalPodAutoscaler for Alarming Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: weather-alarming-hpa
+  namespace: weather-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-alarming
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+

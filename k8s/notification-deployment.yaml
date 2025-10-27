@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-notification
+  namespace: weather-system
+  labels:
+    app: weather-notification
+    component: notification
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: weather-notification
+  template:
+    metadata:
+      labels:
+        app: weather-notification
+        component: notification
+    spec:
+      containers:
+      - name: notification
+        image: gcr.io/YOUR_PROJECT_ID/weather-notification:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: weather-config
+        - secretRef:
+            name: weather-secrets
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - weather-notification
+              topologyKey: kubernetes.io/hostname
+

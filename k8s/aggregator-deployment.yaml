@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-aggregator
+  namespace: weather-system
+  labels:
+    app: weather-aggregator
+    component: aggregator
+spec:
+  replicas: 1  # Only one instance (scheduled tasks)
+  selector:
+    matchLabels:
+      app: weather-aggregator
+  template:
+    metadata:
+      labels:
+        app: weather-aggregator
+        component: aggregator
+    spec:
+      containers:
+      - name: aggregator
+        image: gcr.io/YOUR_PROJECT_ID/weather-aggregator:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: weather-config
+        - secretRef:
+            name: weather-secrets
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      # Ensure only one replica runs (leader election pattern)
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - weather-aggregator
+            topologyKey: kubernetes.io/hostname
+
