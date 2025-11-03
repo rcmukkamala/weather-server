@@ -74,8 +74,7 @@ Quick reference guide to help you choose between 2-node and 3-node deployment.
 | **Notification** | 2 | **2-3** | - |
 | **PostgreSQL** | 1 | 1 | - |
 | **Redis** | 1 | 1 | - |
-| **Kafka** | 2 | **3** ✅ | - |
-| **Zookeeper** | 1 | 1 | - |
+| **Kafka (KRaft)** | 2 | **3** ✅ | - |
 
 ---
 

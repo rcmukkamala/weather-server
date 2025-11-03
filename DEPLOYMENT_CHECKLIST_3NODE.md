@@ -65,10 +65,9 @@ Node 2 (Worker):
     Total Node Usage: ~2 CPU, ~3 GB RAM
 
 Node 3 (Worker):
-├── Zookeeper StatefulSet: 500m CPU, 512Mi RAM
 ├── Weather Server: 1 replica (250m CPU, 256Mi RAM)
 ├── Notification: 1 replica (100m CPU, 128Mi RAM)
-└── Kafka Broker (kafka-2): 1 CPU, 2 GB RAM
+└── Kafka Broker (kafka-2 in KRaft mode): 1 CPU, 2 GB RAM
     Total Node Usage: ~2 CPU, ~3 GB RAM
 ```
 
@@ -363,19 +362,12 @@ Node 3 (Worker):
   # KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3 ✓
   ```
 
-- [ ] **Apply Kafka and Zookeeper**
+- [ ] **Apply Kafka (KRaft mode - no ZooKeeper needed)**
   ```bash
   kubectl apply -f k8s/kafka.yaml
-  # service/zookeeper-service created
-  # statefulset.apps/zookeeper created
+  # configmap/kafka-kraft-config created
   # service/kafka-service created
   # statefulset.apps/kafka created
-  ```
-
-- [ ] **Wait for Zookeeper**
-  ```bash
-  kubectl wait --for=condition=ready pod -l app=zookeeper -n weather-system --timeout=300s
-  # pod/zookeeper-0 condition met
   ```
 
 - [ ] **Wait for Kafka (3 brokers - may take 5-10 minutes)**
@@ -415,9 +407,8 @@ Node 3 (Worker):
   # Expected pods:
   # - postgres-0 (1 pod)
   # - redis-0 (1 pod)
-  # - kafka-0, kafka-1, kafka-2 (3 pods) ✓
-  # - zookeeper-0 (1 pod)
-  # Total: 6 infrastructure pods
+  # - kafka-0, kafka-1, kafka-2 (3 pods in KRaft mode) ✓
+  # Total: 5 infrastructure pods
   ```
 
 - [ ] **All pods in Running state**
@@ -429,7 +420,7 @@ Node 3 (Worker):
 - [ ] **Check services**
   ```bash
   kubectl get svc -n weather-system
-  # postgres-service, redis-service, kafka-service, zookeeper-service
+  # postgres-service, redis-service, kafka-service
   ```
 
 - [ ] **Check PVCs bound**
@@ -601,8 +592,7 @@ Node 3 (Worker):
   # Infrastructure (6):
   #   - postgres-0
   #   - redis-0
-  #   - kafka-0, kafka-1, kafka-2
-  #   - zookeeper-0
+  #   - kafka-0, kafka-1, kafka-2 (KRaft mode)
   # Applications (9-11):
   #   - weather-server-xxx (3 pods)
   #   - weather-aggregator-xxx (1 pod)
@@ -624,7 +614,6 @@ Node 3 (Worker):
   # - postgres-service (ClusterIP)
   # - redis-service (ClusterIP)
   # - kafka-service (ClusterIP)
-  # - zookeeper-service (ClusterIP)
   ```
 
 - [ ] **Check pod distribution across 3 nodes**
@@ -981,10 +970,9 @@ Node 3 (Worker):
 | Notification | 2 | 100m | 128Mi | 200m | 256Mi |
 | PostgreSQL | 1 | 500m | 1Gi | 500m | 1Gi |
 | Redis | 1 | 100m | 256Mi | 100m | 256Mi |
-| Kafka (×3) | 3 | 1000m | 2Gi | 3000m | 6Gi |
-| Zookeeper | 1 | 500m | 512Mi | 500m | 512Mi |
+| Kafka (×3 KRaft) | 3 | 1000m | 2Gi | 3000m | 6Gi |
 
-**Total**: ~6-8 CPUs, ~10-13 GB RAM
+**Total**: ~5.5-7.5 CPUs, ~9.5-12.5 GB RAM
 
 ---
 

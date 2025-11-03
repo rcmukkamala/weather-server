@@ -114,9 +114,6 @@ Role: Worker Node
 Resources: 4 vCPU, 8 GB RAM, 100 GB SSD
 
 Workloads:
-├── Zookeeper StatefulSet (zookeeper-0)
-│   ├── Request: 500m CPU, 512 Mi RAM
-│   ├── Limit: 1 CPU, 1 GB RAM
 │   ├── PVC: 10 GB
 │   └── Port: 2181
 │
@@ -233,8 +230,7 @@ Total Node Usage: ~2 CPU, ~3 GB RAM (Available: 2 CPU, 5 GB RAM)
 | **weather-server-service** | LoadBalancer | weather-server-service.weather-system.svc.cluster.local | 8080 | External LB |
 | **postgres-service** | ClusterIP | postgres-service.weather-system.svc.cluster.local | 5432 | Round-robin |
 | **redis-service** | ClusterIP | redis-service.weather-system.svc.cluster.local | 6379 | Single endpoint |
-| **kafka-service** | ClusterIP | kafka-service.weather-system.svc.cluster.local | 9092 | Kafka protocol |
-| **zookeeper-service** | ClusterIP | zookeeper-service.weather-system.svc.cluster.local | 2181 | Single endpoint |
+| **kafka-service** | ClusterIP | kafka-service.weather-system.svc.cluster.local | 9092 | Kafka protocol (KRaft) |
 
 ### Internal Communication
 
@@ -259,9 +255,8 @@ Total Node Usage: ~2 CPU, ~3 GB RAM (Available: 2 CPU, 5 GB RAM)
 | **kafka-data-kafka-0** | 50 GB | /var/lib/kafka/data | kafka-0 | Node 1 |
 | **kafka-data-kafka-1** | 50 GB | /var/lib/kafka/data | kafka-1 | Node 2 |
 | **kafka-data-kafka-2** | 50 GB | /var/lib/kafka/data | kafka-2 | Node 3 |
-| **zookeeper-data-zookeeper-0** | 10 GB | /var/lib/zookeeper | zookeeper-0 | Node 3 |
 
-**Total PVC Usage**: 140 GB  
+**Total PVC Usage**: 130 GB  
 **Storage Class**: Default (or specify gp3, pd-ssd, etc.)
 
 ---
@@ -314,7 +309,7 @@ Scale Down: -1 pod if CPU < 50% for 5 min
 
 - **Replication Factor**: 3 (every message replicated 3x)
 - **Min In-Sync Replicas**: 2 (requires 2 brokers to acknowledge)
-- **Leader Election**: Automatic via Zookeeper
+- **Leader Election**: Automatic via KRaft (built-in consensus)
 - **Partition Distribution**: Even across 3 brokers
 - **Failure Scenario**: 
   - 1 broker fails → Service continues, elections occur
@@ -339,8 +334,7 @@ Scale Down: -1 pod if CPU < 50% for 5 min
 
 #### Node 3 (Worker) Fails
 - **Control Plane**: Unaffected ✅
-- **Zookeeper**: Kafka coordination unavailable (CRITICAL for Kafka)
-- **Kafka-2**: Kafka continues with 2 brokers
+- **Kafka-2**: Kafka continues with 2 brokers (quorum maintained via KRaft)
 - **Services**: Pods reschedule to Node 1 and Node 2
 - **Recovery**: Automatic (pods reschedule within 60 sec)
 

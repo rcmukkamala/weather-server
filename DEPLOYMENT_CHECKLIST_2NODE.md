@@ -327,12 +327,7 @@ Node 2 (Worker):
 - [ ] **Apply Kafka**
   ```bash
   kubectl apply -f k8s/kafka.yaml
-  # Created zookeeper and kafka resources
-  ```
-
-- [ ] **Wait for Zookeeper**
-  ```bash
-  kubectl wait --for=condition=ready pod -l app=zookeeper -n weather-system --timeout=300s
+  # Created kafka resources in KRaft mode (no ZooKeeper)
   ```
 
 - [ ] **Wait for Kafka (2 brokers)**
@@ -359,14 +354,14 @@ Node 2 (Worker):
 - [ ] **All infrastructure pods running**
   ```bash
   kubectl get pods -n weather-system
-  # Expected: postgres-0, redis-0, kafka-0, kafka-1, zookeeper-0
+  # Expected: postgres-0, redis-0, kafka-0, kafka-1 (KRaft mode)
   # All should be Running and Ready
   ```
 
 - [ ] **Check services**
   ```bash
   kubectl get svc -n weather-system
-  # postgres-service, redis-service, kafka-service, zookeeper-service
+  # postgres-service, redis-service, kafka-service
   ```
 
 - [ ] **Check PVCs bound**
@@ -486,9 +481,8 @@ Node 2 (Worker):
   # - weather-notification-xxx (2 pods)
   # - postgres-0 (1 pod)
   # - redis-0 (1 pod)
-  # - kafka-0, kafka-1 (2 pods)
-  # - zookeeper-0 (1 pod)
-  # Total: ~12-14 pods
+  # - kafka-0, kafka-1 (2 pods in KRaft mode)
+  # Total: ~11-13 pods
   ```
 
 - [ ] **No pods in CrashLoopBackOff**
@@ -501,7 +495,7 @@ Node 2 (Worker):
   ```bash
   kubectl get svc -n weather-system
   # weather-server-service (LoadBalancer)
-  # postgres-service, redis-service, kafka-service, zookeeper-service
+  # postgres-service, redis-service, kafka-service
   ```
 
 #### ✅ 5.2 Get External IP
@@ -783,8 +777,7 @@ kubectl exec -n weather-system deployment/weather-server -- \
 | weather-notification | 100m | 128Mi | - |
 | postgres | 500m | 1Gi | 50Gi |
 | redis | 100m | 256Mi | 10Gi |
-| kafka (each) | 1000m | 2Gi | 50Gi |
-| zookeeper | 500m | 512Mi | 10Gi |
+| kafka (each, KRaft) | 1000m | 2Gi | 50Gi |
 
 ---
 

@@ -1,59 +1,8 @@
 # Note: For production, use managed Kafka (Confluent Cloud, MSK, etc.)
-# This is a minimal Kafka deployment for development/testing
+# This is Kafka in KRaft mode (no ZooKeeper required since Kafka 4.0)
+# Deployment for development/testing
 
-apiVersion: v1
-kind: Service
-metadata:
-  name: zookeeper-service
-  namespace: weather-system
-spec:
-  ports:
-  - port: 2181
-    name: client
-  selector:
-    app: zookeeper
 
----
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: zookeeper
-  namespace: weather-system
-spec:
-  serviceName: zookeeper-service
-  replicas: 1
-  selector:
-    matchLabels:
-      app: zookeeper
-  template:
-    metadata:
-      labels:
-        app: zookeeper
-    spec:
-      containers:
-      - name: zookeeper
-        image: confluentinc/cp-zookeeper:7.5.0
-        ports:
-        - containerPort: 2181
-          name: client
-        env:
-        - name: ZOOKEEPER_CLIENT_PORT
-          value: "2181"
-        - name: ZOOKEEPER_TICK_TIME
-          value: "2000"
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/zookeeper/data
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      resources:
-        requests:
-          storage: 10Gi
-
----
 apiVersion: v1
 kind: Service
 metadata:
@@ -83,25 +32,59 @@ spec:
       labels:
         app: kafka
     spec:
+      initContainers:
+      - name: kafka-init
+        image: apache/kafka:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          NODE_ID=${HOSTNAME##*-}
+          CLUSTER_ID="MkU3OEVBNTcwNTJENDM2Qk"
+          
+          # Format storage only if not already formatted
+          if [ ! -f /var/lib/kafka/data/meta.properties ]; then
+            /opt/kafka/bin/kafka-storage.sh format \
+              -t $CLUSTER_ID \
+              -c /tmp/kraft-config/server.properties
+          fi
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/kafka/data
+        - name: kraft-config
+          mountPath: /tmp/kraft-config
       containers:
       - name: kafka
-        image: confluentinc/cp-kafka:7.5.0
+        image: apache/kafka:latest
         ports:
         - containerPort: 9092
           name: internal
+        - containerPort: 9093
+          name: controller
         env:
-        - name: KAFKA_BROKER_ID
+        # KRaft mode configuration
+        - name: KAFKA_NODE_ID
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        - name: KAFKA_ZOOKEEPER_CONNECT
-          value: "zookeeper-service:2181"
+        - name: KAFKA_PROCESS_ROLES
+          value: "broker,controller"
+        - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+          value: "0@kafka-0.kafka-service:9093,1@kafka-1.kafka-service:9093,2@kafka-2.kafka-service:9093"
+        - name: KAFKA_CONTROLLER_LISTENER_NAMES
+          value: "CONTROLLER"
+        
+        # Listeners
+        - name: KAFKA_LISTENERS
+          value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
         - name: KAFKA_ADVERTISED_LISTENERS
           value: "PLAINTEXT://$(POD_NAME).kafka-service:9092"
         - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
-          value: "PLAINTEXT:PLAINTEXT"
+          value: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
         - name: KAFKA_INTER_BROKER_LISTENER_NAME
           value: "PLAINTEXT"
+        
+        # Replication and retention
         - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
           value: "3"
         - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
@@ -110,6 +93,12 @@ spec:
           value: "2"
         - name: KAFKA_LOG_RETENTION_HOURS
           value: "168"
+        
+        # Storage
+        - name: KAFKA_LOG_DIRS
+          value: "/var/lib/kafka/data"
+        - name: CLUSTER_ID
+          value: "MkU3OEVBNTcwNTJENDM2Qk"
         - name: POD_NAME
           valueFrom:
             fieldRef:
@@ -124,6 +113,20 @@ spec:
           limits:
             memory: "4Gi"
             cpu: "2000m"
+        livenessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      volumes:
+      - name: kraft-config
+        configMap:
+          name: kafka-kraft-config
   volumeClaimTemplates:
   - metadata:
       name: data
@@ -132,4 +135,34 @@ spec:
       resources:
         requests:
           storage: 100Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-kraft-config
+  namespace: weather-system
+data:
+  server.properties: |
+    # KRaft mode configuration
+    process.roles=broker,controller
+    node.id=1
+    controller.quorum.voters=0@kafka-0.kafka-service:9093,1@kafka-1.kafka-service:9093,2@kafka-2.kafka-service:9093
+    controller.listener.names=CONTROLLER
+    
+    # Listeners
+    listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+    listener.security.protocol.map=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+    inter.broker.listener.name=PLAINTEXT
+    
+    # Log directories
+    log.dirs=/var/lib/kafka/data
+    
+    # Replication
+    offsets.topic.replication.factor=3
+    transaction.state.log.replication.factor=3
+    transaction.state.log.min.isr=2
+    
+    # Retention
+    log.retention.hours=168
 

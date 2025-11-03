@@ -152,7 +152,7 @@ All tables implemented with proper indexes:
 - `internal/notification` - Email template and SMTP
 
 ### Infrastructure
-- `docker-compose.yml` - PostgreSQL, Redis, Kafka, Zookeeper
+- `docker-compose.yml` - PostgreSQL, Redis, Kafka (KRaft mode)
 - `migrations/` - Database schema (2 migration files)
 - `Makefile` - Build automation
 - `.env` - Configuration template

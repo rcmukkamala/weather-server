@@ -26,7 +26,7 @@ Your Weather Server now has **complete deployment infrastructure** for both Kube
 ✅ `notification-deployment.yaml` - Notification (2 replicas)
 ✅ `postgres.yaml` - PostgreSQL StatefulSet (1 replica, 50GB)
 ✅ `redis.yaml` - Redis StatefulSet (1 replica, 10GB)
-✅ `kafka.yaml` - Kafka + Zookeeper (3 brokers + 1 ZK)
+✅ `kafka.yaml` - Kafka in KRaft mode (3 brokers, no ZooKeeper)
 
 **Features**:
 - HorizontalPodAutoscalers for auto-scaling
@@ -132,8 +132,7 @@ kubectl get svc weather-server-service -n weather-system
 | Notification | Deployment | 2 | ❌ No | - |
 | PostgreSQL | StatefulSet | 1 | ❌ No | 50GB |
 | Redis | StatefulSet | 1 | ❌ No | 10GB |
-| Kafka | StatefulSet | 3 | ❌ No | 100GB |
-| Zookeeper | StatefulSet | 1 | ❌ No | 10GB |
+| Kafka (KRaft) | StatefulSet | 3 | ❌ No | 100GB |
 
 ### Network Services
 
@@ -348,7 +347,7 @@ kubectl logs -f deployment/weather-server -n weather-system
 After successful deployment, you should see:
 
 ✅ **4 application pods** running (server, aggregator, alarming, notification)
-✅ **4 infrastructure pods** running (postgres, redis, kafka, zookeeper)
+✅ **5 infrastructure pods** running (postgres, redis, kafka-0, kafka-1, kafka-2 in KRaft mode)
 ✅ **LoadBalancer** with external IP assigned
 ✅ **HPA** actively monitoring CPU/memory
 ✅ **Logs** showing "Weather Server is running"

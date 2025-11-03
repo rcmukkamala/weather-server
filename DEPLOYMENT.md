@@ -193,8 +193,7 @@ gcloud redis instances create weather-redis --size=5 --region=${REGION}
 | Notification | 100m/200m | 128Mi/256Mi | 2 | 2-3 |
 | PostgreSQL | 500m/1000m | 1Gi/2Gi | 1 | 1 |
 | Redis | 100m/250m | 256Mi/512Mi | 1 | 1 |
-| Kafka | 1000m/2000m | 2Gi/4Gi | 2 | 3 |
-| Zookeeper | 500m/1000m | 512Mi/1Gi | 1 | 1 |
+| Kafka (KRaft) | 1000m/2000m | 2Gi/4Gi | 2 | 3 |
 
 ---
 
@@ -223,8 +222,7 @@ Local Docker Compose
     ├── Alarming Service (2 replicas)
     ├── Notification Service (2 replicas)
     ├── Aggregator (1 replica)
-    ├── Kafka (1 broker)
-    └── Zookeeper (1 replica)
+    └── Kafka in KRaft mode (2 brokers)
 
 ⚠️ Requires: Kafka replicas=2, replication_factor=2
 ```
@@ -252,13 +250,12 @@ Node 2 (Worker):
     Total: ~2 CPU, ~3 GB RAM
 
 Node 3 (Worker):
-├── Zookeeper: 500m CPU, 512Mi RAM
 ├── Weather Server: 1 replica (250m CPU, 256Mi)
 ├── Notification: 1 replica (100m CPU, 128Mi)
-└── Kafka Broker (kafka-2): 1 CPU, 2 GB RAM
-    Total: ~2 CPU, ~3 GB RAM
+└── Kafka Broker (kafka-2 in KRaft mode): 1 CPU, 2 GB RAM
+    Total: ~1.5 CPU, ~2.5 GB RAM
 
-✅ No configuration changes needed
+✅ No ZooKeeper required (Kafka 4.0+ uses KRaft mode)
 ✅ Full high availability with 3 Kafka brokers (RF=3)
 ✅ Optimal pod distribution across all nodes
 ✅ Control plane co-located with worker on Node 1

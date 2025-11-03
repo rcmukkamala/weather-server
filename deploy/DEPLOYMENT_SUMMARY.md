@@ -18,7 +18,7 @@
 ✅ `k8s/notification-deployment.yaml` - Notification (2 replicas)
 ✅ `k8s/postgres.yaml` - PostgreSQL StatefulSet
 ✅ `k8s/redis.yaml` - Redis StatefulSet
-✅ `k8s/kafka.yaml` - Kafka + Zookeeper StatefulSets
+✅ `k8s/kafka.yaml` - Kafka StatefulSet (KRaft mode)
 
 ### GCP Deployment Files (3)
 ✅ `deploy/gcp/README.md` - Complete GCP guide
@@ -296,8 +296,7 @@ kubectl get pods -n weather-system
 # redis-0                                1/1     Running   0
 # kafka-0                                1/1     Running   0
 # kafka-1                                1/1     Running   0
-# kafka-2                                1/1     Running   0
-# zookeeper-0                            1/1     Running   0
+# kafka-2                                1/1     Running   0 (KRaft mode)
 ```
 
 ### 2. Check Services

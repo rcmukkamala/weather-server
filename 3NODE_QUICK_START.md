@@ -34,7 +34,6 @@ Node 2 (Worker):
 └── Kafka Broker (kafka-1): 1 CPU, 2 GB RAM
 
 Node 3 (Worker):
-├── Zookeeper: 500m CPU, 512Mi RAM
 ├── Weather Server: 1 replica (250m CPU, 256Mi RAM)
 ├── Notification: 1 replica (100m CPU, 128Mi RAM)
 └── Kafka Broker (kafka-2): 1 CPU, 2 GB RAM
@@ -116,8 +115,7 @@ kubectl get pods -n weather-system
 # Expected:
 # postgres-0                      1/1   Running
 # redis-0                         1/1   Running
-# kafka-0, kafka-1, kafka-2      3/3   Running  ✓
-# zookeeper-0                     1/1   Running
+# kafka-0, kafka-1, kafka-2      3/3   Running  ✓ (KRaft mode)
 # weather-server-xxx (×3)        3/3   Running
 # weather-aggregator-xxx          1/1   Running
 # weather-alarming-xxx (×2)       2/2   Running

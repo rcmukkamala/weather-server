@@ -97,7 +97,7 @@ cd Weather-Server
 ### 2. Start Infrastructure
 
 ```bash
-# Start PostgreSQL, Redis, Kafka, Zookeeper
+# Start PostgreSQL, Redis, Kafka (in KRaft mode)
 make docker-up
 
 # Or manually:

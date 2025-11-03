@@ -1,6 +1,23 @@
 # Weather Server - Quick Start Guide
 
-Get the Weather Server running in 5 minutes on Ubuntu/Linux!
+**Standalone Deployment on Ubuntu/Linux** - No Kubernetes, No GCP Required!
+
+Get the Weather Server running in 5 minutes as **native Linux processes** on a single machine.
+
+## What This Guide Covers
+
+This is a **standalone deployment** where:
+- ✅ Infrastructure runs in Docker containers (PostgreSQL, Redis, Kafka)
+- ✅ Application services run as **native Linux processes** (not in containers)
+- ✅ Perfect for **development**, **testing**, and **single-machine production**
+- ❌ **No Kubernetes required**
+- ❌ **No GCP/Cloud required**
+- ❌ **No container orchestration**
+
+**For Kubernetes deployment**, see: `DEPLOYMENT_CHECKLIST_3NODE.md`  
+**For GCP deployment**, see: `deploy/gcp/README.md`
+
+---
 
 ## Prerequisites
 
@@ -96,8 +113,7 @@ make docker-up
 This starts:
 - PostgreSQL (port 5432)
 - Redis (port 6379)
-- Kafka (port 9092)
-- Zookeeper (port 2181)
+- Kafka in KRaft mode (port 9092, 9093)
 - Kafka UI (port 8090)
 
 Wait ~10 seconds for services to be healthy.
@@ -114,7 +130,9 @@ Creates 4 binaries in `bin/`:
 - `alarming` - Real-time alarm evaluation
 - `notification` - Email notifications
 
-## Step 3: Run Services (4 terminals)
+## Step 3: Run Services as Native Processes (4 terminals)
+
+**Each service runs as a standalone Linux process** - just like any traditional application!
 
 ### Terminal 1: TCP Server
 ```bash
@@ -295,20 +313,41 @@ make clean
 - Ensure duration_minutes has elapsed (e.g., 10 minutes)
 - Check alarming service logs
 
-## Architecture Recap
+## Deployment Architecture
 
+### This Standalone Setup:
+```
+┌─────────────────────────────────────────────┐
+│         Single Ubuntu Machine               │
+├─────────────────────────────────────────────┤
+│  Docker Containers (Infrastructure):        │
+│  • PostgreSQL (port 5432)                   │
+│  • Redis (port 6379)                        │
+│  • Kafka in KRaft mode (ports 9092, 9093)  │
+│  • Kafka UI (port 8090)                     │
+├─────────────────────────────────────────────┤
+│  Native Linux Processes (Applications):     │
+│  • bin/server - TCP Server (port 8080)     │
+│  • bin/aggregator - Aggregation Service     │
+│  • bin/alarming - Alarming Service          │
+│  • bin/notification - Notification Service  │
+└─────────────────────────────────────────────┘
+```
+
+### Data Flow:
 ```
 Weather Client (examples/client/main.go)
     ↓ TCP (port 8080)
-TCP Server (bin/server)
+TCP Server (bin/server) ← Native Linux Process
     ↓ Kafka
 [weather.metrics.raw topic]
     ↓                      ↓
-DB Writer              Alarming Service
+DB Writer              Alarming Service ← Native Linux Process
     ↓                      ↓ Redis
 PostgreSQL          [weather.alarms topic]
     ↓                      ↓
-Aggregation         Notification Service
+Aggregation ← Native   Notification Service ← Native
+Linux Process          Linux Process
                            ↓ SMTP
 ```
 
@@ -319,20 +358,92 @@ Aggregation         Notification Service
 - **Kafka Partitions**: Scale to number of unique zipcodes / 100
 - **DB Writer Instances**: Can run multiple for higher throughput
 
-## Production Checklist
+## Stopping Services
 
-- [ ] Configure SMTP credentials
-- [ ] Set strong DB password
-- [ ] Enable Kafka TLS
-- [ ] Set up monitoring (Prometheus/Grafana)
-- [ ] Configure log aggregation
+To gracefully stop all services:
+
+### Stop Application Processes
+Press `Ctrl+C` in each terminal running a service:
+1. Terminal 1: Stop TCP Server
+2. Terminal 2: Stop Aggregator
+3. Terminal 3: Stop Alarming Service
+4. Terminal 4: Stop Notification Service
+
+### Stop Infrastructure
+```bash
+# Stop and remove containers
+make docker-down
+# or
+docker-compose down
+
+# To also remove volumes (deletes data!)
+docker-compose down -v
+```
+
+## Production Checklist (Standalone)
+
+- [ ] Configure SMTP credentials in `.env`
+- [ ] Set strong DB password in `docker-compose.yml` and `.env`
+- [ ] Enable Kafka TLS (for production)
+- [ ] Set up process management (systemd, supervisor, or pm2)
+- [ ] Configure log rotation
 - [ ] Set appropriate connection limits
-- [ ] Enable Redis persistence
+- [ ] Enable Redis persistence and AOF
 - [ ] Set up backup strategy for PostgreSQL
+- [ ] Consider running services behind nginx/reverse proxy
+- [ ] Set up monitoring (Prometheus/Grafana)
+- [ ] Configure firewall rules (ufw/iptables)
+
+### Optional: Run Services as Systemd Units
+
+For production standalone deployment, create systemd service files:
+
+```bash
+# Example: /etc/systemd/system/weather-server.service
+[Unit]
+Description=Weather Server TCP Service
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=yourusername
+WorkingDirectory=/path/to/Weather-Server
+ExecStart=/path/to/Weather-Server/bin/server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Repeat for aggregator, alarming, and notification services.
 
 ---
 
-**Need help?** Check README.md for detailed documentation.
+## When to Use This Standalone Deployment
+
+### ✅ Use Standalone When:
+- Development and testing
+- Single-machine deployment
+- Low to medium traffic (< 1000 connections)
+- Simple infrastructure requirements
+- Cost-sensitive deployments
+- Learning the system
+
+### ❌ Use Kubernetes Instead When:
+- High availability required (multi-node)
+- Auto-scaling needed (based on load)
+- High traffic (> 10,000 connections)
+- Multi-region deployment
+- Need container orchestration
+- See: `DEPLOYMENT_CHECKLIST_3NODE.md`
+
+---
+
+**Need help?** Check `README.md` for detailed documentation.
 
 **Ready to scale?** All services can run multiple instances (except aggregator).
+
+**Want production deployment?** See `DEPLOYMENT.md` for Kubernetes and GCP options.
 
