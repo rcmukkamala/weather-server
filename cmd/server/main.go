@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -58,10 +59,24 @@ func main() {
 		fmt.Printf("Note: Topic creation failed (may already exist): %v\n", err)
 	}
 
-	// Create Kafka producer
-	producer := queue.NewProducer(cfg.Kafka.Brokers, cfg.Kafka.TopicMetrics)
+	// Create optimized Kafka producer (Phase 2!)
+	producerConfig := &queue.ProducerConfig{
+		Brokers:      cfg.Kafka.Brokers,
+		Topic:        cfg.Kafka.TopicMetrics,
+		BatchSize:    cfg.Kafka.BatchSize,
+		BatchTimeout: cfg.Kafka.BatchTimeout,
+		Compression:  cfg.Kafka.Compression,
+		Async:        cfg.Kafka.Async,
+		MaxAttempts:  cfg.Kafka.MaxAttempts,
+		RequiredAcks: cfg.Kafka.RequiredAcks,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		BatchBytes:   1048576, // 1MB
+	}
+	producer := queue.NewProducerWithConfig(producerConfig)
 	defer producer.Close()
-	fmt.Println("Kafka producer initialized")
+	fmt.Printf("Kafka producer initialized (batch=%d, compression=%s, async=%v)\n",
+		cfg.Kafka.BatchSize, cfg.Kafka.Compression, cfg.Kafka.Async)
 
 	// Create connection manager
 	connManager := connection.NewManager(cfg.TCPServer.MaxConnections)
@@ -73,8 +88,35 @@ func main() {
 	defer timerManager.Stop()
 	fmt.Println("Timer manager started")
 
-	// Create TCP server
-	tcpServer := server.NewTCPServer(&cfg.TCPServer, connManager, timerManager, producer)
+	// Create TCP server with worker pool support (Phase 1!)
+	var tcpServer interface {
+		Start() error
+		Stop()
+	}
+
+	if cfg.TCPServer.UseWorkerPool {
+		// Calculate worker count
+		workerCount := cfg.TCPServer.WorkerCount
+		if workerCount == 0 {
+			workerCount = runtime.NumCPU() * 4 // Auto: 4x CPU cores
+		}
+
+		fmt.Printf("Starting TCP server with worker pool (%d workers, queue size %d)\n",
+			workerCount, cfg.TCPServer.JobQueueSize)
+
+		tcpServer = server.NewWorkerPoolTCPServer(
+			&cfg.TCPServer,
+			connManager,
+			timerManager,
+			producer,
+			workerCount,
+			cfg.TCPServer.JobQueueSize,
+		)
+	} else {
+		fmt.Println("Starting TCP server with goroutine-per-connection")
+		tcpServer = server.NewTCPServer(&cfg.TCPServer, connManager, timerManager, producer)
+	}
+
 	if err := tcpServer.Start(); err != nil {
 		log.Fatalf("Failed to start TCP server: %v", err)
 	}
