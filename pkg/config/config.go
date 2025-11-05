@@ -105,9 +105,9 @@ func Load() (*Config, error) {
 			NumPartitions: getEnvAsInt("KAFKA_NUM_PARTITIONS", 10),
 
 			// Producer optimization (Phase 2!)
-			BatchSize:    getEnvAsInt("KAFKA_BATCH_SIZE", 100),
+			BatchSize:    getEnvAsInt("KAFKA_BATCH_SIZE", 5),
 			BatchTimeout: getEnvAsDuration("KAFKA_BATCH_TIMEOUT", 100*time.Millisecond),
-			Compression:  getEnv("KAFKA_COMPRESSION", "snappy"),
+			Compression:  getEnv("KAFKA_COMPRESSION", "none"),
 			Async:        getEnvAsBool("KAFKA_ASYNC", true),
 			MaxAttempts:  getEnvAsInt("KAFKA_MAX_ATTEMPTS", 3),
 			RequiredAcks: getEnvAsInt("KAFKA_REQUIRED_ACKS", 1),
@@ -119,7 +119,7 @@ func Load() (*Config, error) {
 			InactivityTimeout: getEnvAsDuration("TCP_INACTIVITY_TIMEOUT", 2*time.Minute),
 
 			// Worker pool (Phase 1!) - default to 4x CPU cores
-			WorkerCount:   getEnvAsInt("TCP_WORKER_COUNT", 0), // 0 = auto (4x cores)
+			WorkerCount:   getEnvAsInt("TCP_WORKER_COUNT", 10), // 0 = auto (4x cores)
 			JobQueueSize:  getEnvAsInt("TCP_JOB_QUEUE_SIZE", 2000),
 			UseWorkerPool: getEnvAsBool("TCP_USE_WORKER_POOL", true), // Enable by default
 		},

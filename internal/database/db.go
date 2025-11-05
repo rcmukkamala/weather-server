@@ -38,6 +38,17 @@ func Connect(connectionString string) (*DB, error) {
 
 // RunMigrations executes all SQL migration files in order
 func (db *DB) RunMigrations(migrationsDir string) error {
+	// Create migrations tracking table if it doesn't exist
+	if err := db.createMigrationsTable(); err != nil {
+		return fmt.Errorf("failed to create migrations table: %w", err)
+	}
+
+	// Get list of already executed migrations
+	executedMigrations, err := db.getExecutedMigrations()
+	if err != nil {
+		return fmt.Errorf("failed to get executed migrations: %w", err)
+	}
+
 	// Read all migration files
 	files, err := os.ReadDir(migrationsDir)
 	if err != nil {
@@ -53,8 +64,15 @@ func (db *DB) RunMigrations(migrationsDir string) error {
 	}
 	sort.Strings(sqlFiles)
 
-	// Execute each migration
+	// Execute each migration that hasn't been run yet
+	migrationsRun := 0
 	for _, filename := range sqlFiles {
+		// Skip if already executed
+		if executedMigrations[filename] {
+			fmt.Printf("Skipping migration (already executed): %s\n", filename)
+			continue
+		}
+
 		fmt.Printf("Running migration: %s\n", filename)
 
 		filePath := filepath.Join(migrationsDir, filename)
@@ -63,13 +81,66 @@ func (db *DB) RunMigrations(migrationsDir string) error {
 			return fmt.Errorf("failed to read migration %s: %w", filename, err)
 		}
 
+		// Execute migration
 		if _, err := db.Exec(string(content)); err != nil {
 			return fmt.Errorf("failed to execute migration %s: %w", filename, err)
 		}
+
+		// Record migration as executed
+		if err := db.recordMigration(filename); err != nil {
+			return fmt.Errorf("failed to record migration %s: %w", filename, err)
+		}
+
+		migrationsRun++
 	}
 
-	fmt.Println("All migrations completed successfully")
+	if migrationsRun == 0 {
+		fmt.Println("No new migrations to run")
+	} else {
+		fmt.Printf("Completed %d migration(s) successfully\n", migrationsRun)
+	}
 	return nil
+}
+
+// createMigrationsTable creates the schema_migrations table for tracking
+func (db *DB) createMigrationsTable() error {
+	query := `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			id SERIAL PRIMARY KEY,
+			filename VARCHAR(255) UNIQUE NOT NULL,
+			executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`
+	_, err := db.Exec(query)
+	return err
+}
+
+// getExecutedMigrations returns a map of already executed migrations
+func (db *DB) getExecutedMigrations() (map[string]bool, error) {
+	query := "SELECT filename FROM schema_migrations"
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	executed := make(map[string]bool)
+	for rows.Next() {
+		var filename string
+		if err := rows.Scan(&filename); err != nil {
+			return nil, err
+		}
+		executed[filename] = true
+	}
+
+	return executed, rows.Err()
+}
+
+// recordMigration records a migration as executed
+func (db *DB) recordMigration(filename string) error {
+	query := "INSERT INTO schema_migrations (filename) VALUES ($1)"
+	_, err := db.Exec(query, filename)
+	return err
 }
 
 // UpsertLocation inserts or updates a location

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -71,7 +69,7 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -79,12 +77,26 @@ services:
     networks:
       - weather-network
 
+  # Kafka Topic Initialization
+  kafka-init:
+    image: apache/kafka:latest
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./scripts/init-kafka-topics.sh:/init-kafka-topics.sh:ro
+    command: /init-kafka-topics.sh
+    networks:
+      - weather-network
+    restart: "no"  # Run once and exit
+
   # Kafka UI (optional, for monitoring)
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: weather-kafka-ui
     depends_on:
-      - kafka
+      kafka-init:
+        condition: service_completed_successfully
     ports:
       - "8090:8080"
     environment:

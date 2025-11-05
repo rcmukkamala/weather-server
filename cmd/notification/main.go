@@ -46,7 +46,10 @@ func main() {
 		for {
 			msg, err := consumer.Consume(ctx)
 			if err != nil {
-				log.Printf("Failed to consume message: %v\n", err)
+				// Don't log EOF errors (happens when no messages available)
+				if err.Error() != "failed to fetch message: EOF" {
+					log.Printf("Failed to consume message: %v\n", err)
+				}
 				continue
 			}
 

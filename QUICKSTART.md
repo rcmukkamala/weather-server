@@ -114,9 +114,10 @@ This starts:
 - PostgreSQL (port 5432)
 - Redis (port 6379)
 - Kafka in KRaft mode (port 9092, 9093)
+- Kafka topics auto-initialization (runs once)
 - Kafka UI (port 8090)
 
-Wait ~10 seconds for services to be healthy.
+Wait ~10 seconds for services to be healthy. The Kafka topics (`weather.metrics.raw` and `weather.alarms`) will be automatically created during startup.
 
 ## Step 2: Build Services (15 seconds)
 
@@ -418,6 +419,47 @@ WantedBy=multi-user.target
 ```
 
 Repeat for aggregator, alarming, and notification services.
+
+---
+
+## Troubleshooting
+
+### Kafka Topics Missing
+
+If you see error: `Unknown Topic Or Partition`, the topics weren't created automatically.
+
+**Manual Fix:**
+```bash
+make kafka-init
+```
+
+**Verify Topics:**
+```bash
+make kafka-topics
+# Should show:
+# weather.alarms
+# weather.metrics.raw
+```
+
+**Reset Everything (if needed):**
+```bash
+make docker-down
+docker volume prune -f
+make docker-up
+```
+
+### Check Service Health
+
+```bash
+# Check all containers
+docker ps
+
+# Check Kafka logs
+docker logs weather-kafka
+
+# Check if topics exist
+docker exec weather-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+```
 
 ---
 

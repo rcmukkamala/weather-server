@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/smukkama/weather-server/internal/connection"
-	"github.com/smukkama/weather-server/internal/database"
 	"github.com/smukkama/weather-server/internal/queue"
 	"github.com/smukkama/weather-server/internal/server"
 	"github.com/smukkama/weather-server/internal/timer"
@@ -25,20 +23,7 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	fmt.Println("Starting Weather Server...")
-
-	// Connect to database
-	db, err := database.Connect(cfg.Database.ConnectionString())
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
-	fmt.Println("Connected to database")
-
-	// Run migrations
-	if err := db.RunMigrations("migrations"); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
-	}
+	fmt.Println("Starting Weather Server (TCP + Kafka Producer)...")
 
 	// Create Kafka topics
 	if err := queue.CreateTopic(
@@ -47,7 +32,7 @@ func main() {
 		cfg.Kafka.NumPartitions,
 		1, // replication factor
 	); err != nil {
-		fmt.Printf("Note: Topic creation failed (may already exist): %v\n", err)
+		fmt.Printf("Note: Topic creation for %s failed (may already exist): %v\n", cfg.Kafka.TopicMetrics, err)
 	}
 
 	if err := queue.CreateTopic(
@@ -56,7 +41,7 @@ func main() {
 		1, // single partition for alarms
 		1, // replication factor
 	); err != nil {
-		fmt.Printf("Note: Topic creation failed (may already exist): %v\n", err)
+		fmt.Printf("Note: Topic creation for %s failed (may already exist): %v\n", cfg.Kafka.TopicAlarms, err)
 	}
 
 	// Create optimized Kafka producer (Phase 2!)
@@ -73,6 +58,7 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 		BatchBytes:   1048576, // 1MB
 	}
+	fmt.Printf("Producer config: %+v\n", producerConfig)
 	producer := queue.NewProducerWithConfig(producerConfig)
 	defer producer.Close()
 	fmt.Printf("Kafka producer initialized (batch=%d, compression=%s, async=%v)\n",
@@ -122,16 +108,10 @@ func main() {
 	}
 	defer tcpServer.Stop()
 
-	// Start database writer
-	consumer := queue.NewConsumer(cfg.Kafka.Brokers, cfg.Kafka.TopicMetrics, "db-writer-group")
-	defer consumer.Close()
-
-	batchWriter := queue.NewBatchWriter(consumer, db, 100, 5*time.Second)
-	if err := batchWriter.Start(context.Background()); err != nil {
-		log.Fatalf("Failed to start batch writer: %v", err)
-	}
-	defer batchWriter.Stop()
-	fmt.Println("Database writer started")
+	// Database writer is a separate service (cmd/dbwriter)
+	// It handles: Kafka consumption, database writes, and migrations
+	// Run 'make run-dbwriter' in a separate terminal
+	fmt.Println("Note: Start dbwriter service separately for database persistence")
 
 	// Print statistics periodically
 	go func() {

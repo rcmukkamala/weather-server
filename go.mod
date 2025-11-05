@@ -1,13 +1,15 @@
 module github.com/smukkama/weather-server
 
-go 1.21
+go 1.23
+
+toolchain go1.24.9
 
 require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.5.1
-	github.com/segmentio/kafka-go v0.4.47
+	github.com/segmentio/kafka-go v0.4.49
 )
 
 require (

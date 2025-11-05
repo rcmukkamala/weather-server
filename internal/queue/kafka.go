@@ -164,24 +164,22 @@ type Consumer struct {
 
 // NewConsumer creates a new Kafka consumer
 func NewConsumer(brokers []string, topic, groupID string) *Consumer {
+	fmt.Printf("Creating new consumer of broker %s for topic %s in group %s\n", brokers, topic, groupID)
 	return &Consumer{
 		reader: kafka.NewReader(kafka.ReaderConfig{
-			Brokers:        brokers,
-			Topic:          topic,
-			GroupID:        groupID,
-			MinBytes:       1,    // 1 byte
-			MaxBytes:       10e6, // 10MB
-			CommitInterval: 0,    // Manual commit for exactly-once
-			StartOffset:    kafka.LastOffset,
+			Brokers: brokers,
+			Topic:   topic,
+			GroupID: groupID,
+			// Use library defaults - simpler configuration is more reliable
 		}),
 	}
 }
 
 // Consume reads messages from Kafka
 func (c *Consumer) Consume(ctx context.Context) (kafka.Message, error) {
-	msg, err := c.reader.FetchMessage(ctx)
+	msg, err := c.reader.ReadMessage(context.Background())
 	if err != nil {
-		return kafka.Message{}, fmt.Errorf("failed to fetch message: %w", err)
+		return kafka.Message{}, fmt.Errorf("failed to read message: %w", err)
 	}
 	return msg, nil
 }
@@ -194,14 +192,14 @@ func (c *Consumer) Commit(ctx context.Context, msg kafka.Message) error {
 	return nil
 }
 
-// Close closes the consumer
-func (c *Consumer) Close() error {
-	return c.reader.Close()
-}
-
 // Stats returns consumer statistics
 func (c *Consumer) Stats() kafka.ReaderStats {
 	return c.reader.Stats()
+}
+
+// Close closes the consumer
+func (c *Consumer) Close() error {
+	return c.reader.Close()
 }
 
 // GetPartitionForZipcode returns the partition number for a zipcode

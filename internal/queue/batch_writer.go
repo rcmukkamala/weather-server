@@ -52,6 +52,19 @@ func (bw *BatchWriter) run(ctx context.Context) {
 	ticker := time.NewTicker(bw.flushInterval)
 	defer ticker.Stop()
 
+	// Consume messages in a goroutine (like your test program)
+	msgChan := make(chan kafka.Message, 10)
+	go func() {
+		for {
+			msg, err := bw.consumer.Consume(ctx)
+			if err != nil {
+				fmt.Printf("Consumer error: %v\n", err)
+				continue
+			}
+			msgChan <- msg
+		}
+	}()
+
 	for {
 		select {
 		case <-bw.stopCh:
@@ -64,25 +77,19 @@ func (bw *BatchWriter) run(ctx context.Context) {
 		case <-ticker.C:
 			// Periodic flush
 			if len(batch) > 0 {
+				fmt.Printf("Flush interval reached (%d messages), flushing...\n", len(batch))
 				bw.flush(ctx, batch)
 				batch = nil
 			}
 
-		default:
-			// Try to fetch message with short timeout
-			fetchCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-			msg, err := bw.consumer.Consume(fetchCtx)
-			cancel()
-
-			if err != nil {
-				// Timeout or error, continue
-				continue
-			}
-
+		case msg := <-msgChan:
+			fmt.Printf("Consumed message from topic (partition=%d, offset=%d)\n",
+				msg.Partition, msg.Offset)
 			batch = append(batch, msg)
 
 			// Flush if batch is full
 			if len(batch) >= bw.batchSize {
+				fmt.Printf("Batch full (%d messages), flushing...\n", len(batch))
 				bw.flush(ctx, batch)
 				batch = nil
 			}
